@@ -1,0 +1,117 @@
+{{- if .Values.postgres.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "heb-inventory.fullname" . }}-postgres-init
+  labels:
+    {{- include "heb-inventory.labels" . | nindent 4 }}
+data:
+  0001_init.up.sql: |
+    CREATE TABLE IF NOT EXISTS items (
+        sku              TEXT PRIMARY KEY,
+        name             TEXT NOT NULL,
+        department       TEXT NOT NULL DEFAULT '',
+        unit_price_cents BIGINT NOT NULL DEFAULT 0 CHECK (unit_price_cents >= 0),
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS items_department_idx ON items (department);
+    CREATE TABLE IF NOT EXISTS stock (
+        sku        TEXT NOT NULL REFERENCES items(sku) ON DELETE CASCADE,
+        store_id   TEXT NOT NULL,
+        quantity   BIGINT NOT NULL DEFAULT 0,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (sku, store_id)
+    );
+    CREATE INDEX IF NOT EXISTS stock_store_idx ON stock (store_id);
+    CREATE TABLE IF NOT EXISTS stock_movements (
+        id         BIGSERIAL PRIMARY KEY,
+        sku        TEXT NOT NULL REFERENCES items(sku) ON DELETE CASCADE,
+        store_id   TEXT NOT NULL,
+        delta      BIGINT NOT NULL,
+        reason     TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE INDEX IF NOT EXISTS stock_movements_sku_store_idx ON stock_movements (sku, store_id);
+    CREATE INDEX IF NOT EXISTS stock_movements_created_at_idx ON stock_movements (created_at DESC);
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    {{- include "heb-inventory.labels" . | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    {{- include "heb-inventory.labels" . | nindent 4 }}
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - secretRef:
+                name: {{ include "heb-inventory.fullname" . }}-secrets
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}, "-d", {{ .Values.postgres.database | quote }}]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.postgres.user | quote }}, "-d", {{ .Values.postgres.database | quote }}]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.postgres.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: init
+          configMap:
+            name: {{ include "heb-inventory.fullname" . }}-postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.postgres.storage }}
+{{- end }}

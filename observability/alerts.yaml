@@ -1,0 +1,87 @@
+# Prometheus alerting rules for heb-inventory.
+# Applied as a PrometheusRule CR (kube-prometheus-stack / prometheus-operator).
+# Each alert names a runbook section in RUNBOOK.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: heb-inventory
+  namespace: heb-inventory
+  labels:
+    app.kubernetes.io/name: heb-inventory
+    release: prometheus  # match the kube-prometheus-stack release label
+spec:
+  groups:
+    - name: heb-inventory.rules
+      interval: 30s
+      rules:
+        - alert: InventoryHighErrorRate
+          expr: |
+            (
+              sum(rate(http_requests_total{status=~"Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout"}[5m]))
+              /
+              sum(rate(http_requests_total[5m]))
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: page
+            service: heb-inventory
+          annotations:
+            summary: "heb-inventory 5xx error rate >5% for 5m"
+            description: "5xx rate is {{ printf \"%.2f%%\" $value }} over the last 5m. See RUNBOOK.md#3-high-5xx-rate."
+
+        - alert: InventoryReadinessFailing
+          expr: |
+            max(kube_pod_container_status_ready{namespace="heb-inventory",pod=~"heb-inventory-.*"}) == 0
+          for: 3m
+          labels:
+            severity: page
+            service: heb-inventory
+          annotations:
+            summary: "All heb-inventory pods are unready"
+            description: "No pod has reported Ready=true for 3m. See RUNBOOK.md#2-readiness-flapping-503-from-readyz."
+
+        - alert: InventoryP95LatencyHigh
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket[5m]))
+            ) > 0.5
+          for: 10m
+          labels:
+            severity: ticket
+            service: heb-inventory
+          annotations:
+            summary: "heb-inventory p95 latency >500ms"
+            description: "p95 = {{ printf \"%.3fs\" $value }}. See RUNBOOK.md#4-p95-latency-regression."
+
+        - alert: InventoryPodRestartingFrequently
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="heb-inventory",pod=~"heb-inventory-.*"}[15m]) >= 3
+          for: 0m
+          labels:
+            severity: page
+            service: heb-inventory
+          annotations:
+            summary: "heb-inventory pod restarted 3+ times in 15m"
+            description: "Pod {{ $labels.pod }} is restarting. See RUNBOOK.md#1-pods-crashloopbackoff-at-startup."
+
+        - alert: InventoryPodOOMKilled
+          expr: |
+            kube_pod_container_status_last_terminated_reason{namespace="heb-inventory",reason="OOMKilled"} == 1
+          for: 0m
+          labels:
+            severity: page
+            service: heb-inventory
+          annotations:
+            summary: "heb-inventory pod was OOMKilled"
+            description: "Pod {{ $labels.pod }} was OOMKilled. See RUNBOOK.md#5-memory-leak--oomkilled."
+
+        - alert: InventoryPostgresDown
+          expr: |
+            kube_statefulset_status_replicas_ready{namespace="heb-inventory",statefulset="postgres"} == 0
+          for: 2m
+          labels:
+            severity: page
+            service: heb-inventory
+          annotations:
+            summary: "Postgres StatefulSet has 0 ready replicas"
+            description: "In-cluster Postgres is down. See RUNBOOK.md#2-readiness-flapping-503-from-readyz."

@@ -1,0 +1,12 @@
+.git
+.github
+.gitignore
+.dockerignore
+README.md
+CLAUDE.md
+bin/
+*.md
+charts/
+k8s/
+.env*
+coverage.*

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "heb-inventory.fullname" . }}-config
+  labels:
+    {{- include "heb-inventory.labels" . | nindent 4 }}
+data:
+  HTTP_ADDR: {{ .Values.config.httpAddr | quote }}
+  PPROF_ADDR: {{ .Values.config.pprofAddr | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.config.shutdownTimeoutSeconds | quote }}

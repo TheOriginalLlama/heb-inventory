@@ -1,0 +1,80 @@
+image:
+  repository: ghcr.io/theoriginalllama/heb-inventory
+  tag: ""  # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+revisionHistoryLimit: 5
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: ""
+  host: inventory.local
+  path: /
+  pathType: Prefix
+  tls: []
+  # - secretName: inventory-tls
+  #   hosts: [inventory.example.com]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+config:
+  httpAddr: ":8080"
+  pprofAddr: ":6060"  # set to "" to disable pprof endpoint
+  logLevel: info
+  shutdownTimeoutSeconds: 15
+
+# Database connection. In production, point this at a managed Postgres
+# and disable the in-cluster postgres below.
+database:
+  url: "postgres://inventory:inventory@postgres:5432/inventory?sslmode=disable"
+
+# In-cluster Postgres for local/demo. Disable in production.
+postgres:
+  enabled: true
+  image: postgres:16-alpine
+  user: inventory
+  password: inventory
+  database: inventory
+  storage: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]

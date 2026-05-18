@@ -1,0 +1,12 @@
+apiVersion: v2
+name: heb-inventory
+description: Inventory API for tracking SKUs and stock levels across stores.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - inventory
+  - api
+maintainers:
+  - name: TheOriginalLlama
+    url: https://github.com/TheOriginalLlama
