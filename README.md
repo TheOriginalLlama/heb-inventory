@@ -35,6 +35,16 @@ client -> [Ingress] -> [Service] -> [Deployment: heb-inventory (Go)]
 | GET    | `/readyz`                       | Readiness (DB ping)               |
 | GET    | `/metrics`                      | Prometheus metrics                |
 
+## Prerequisites
+
+| Tool                        | Needed for                                            |
+|-----------------------------|--------------------------------------------------------|
+| Docker (w/ `compose` plugin)| Options 1, 2 (Postgres), 3, 4 (image build)            |
+| Go 1.22+                    | Option 2, Development                                  |
+| `kubectl` + `kind` (or `minikube`) | Options 3, 4                                    |
+| `helm`                      | Option 4, `helm lint`                                  |
+| `kubeconform`               | Manifest validation in Development                     |
+
 ## Run it
 
 ### Option 1: Docker Compose (fastest)
@@ -109,7 +119,7 @@ All config via env vars (loaded from `ConfigMap` + `Secret` in cluster):
 
 ```bash
 go vet ./...
-go test -race ./...
+go test -race ./...   # -race needs CGO; on Windows install gcc or drop -race
 go build ./...
 helm lint charts/heb-inventory
 kubectl kustomize k8s/ | kubeconform -strict -ignore-missing-schemas

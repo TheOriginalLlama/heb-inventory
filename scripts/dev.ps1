@@ -34,7 +34,9 @@ function Invoke-Build {
 
 function Invoke-Test {
   go vet ./...
-  go test -race ./...
+  # -race requires CGO; CI runs the race build on Linux. Drop it here so the
+  # script works on Windows without a gcc toolchain.
+  go test ./...
 }
 
 function Invoke-Up {

@@ -12,7 +12,6 @@ type Config struct {
 	PProfAddr       string
 	DatabaseURL     string
 	ShutdownTimeout time.Duration
-	LogLevel        string
 }
 
 func Load() (Config, error) {
@@ -21,7 +20,6 @@ func Load() (Config, error) {
 		PProfAddr:       os.Getenv("PPROF_ADDR"),
 		DatabaseURL:     os.Getenv("DATABASE_URL"),
 		ShutdownTimeout: 15 * time.Second,
-		LogLevel:        getenv("LOG_LEVEL", "info"),
 	}
 
 	if cfg.DatabaseURL == "" {
