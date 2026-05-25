@@ -16,5 +16,7 @@ resources:
   - hpa.yaml
   - pdb.yaml
 
-commonLabels:
-  app.kubernetes.io/part-of: heb-inventory
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/part-of: heb-inventory
